@@ -142,6 +142,24 @@ docker compose up -d
 
 Both commands listen on your own machine only. Use `-p 8080:8080` to let other machines in. Read the warning about login above first.
 
+**Let floci start it.** floci can run this console as its own sidecar. Set one variable on floci:
+
+```yaml
+services:
+  floci:
+    image: floci/floci:latest
+    ports:
+      - "4566:4566"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      FLOCI_SERVICES_UI_IMAGE: ghcr.io/varun1505/floci-aws-ui:latest
+```
+
+Then open http://localhost:4566/_floci/ui. floci starts the console and sends you to it on port 4500.
+
+This works because the image follows the [Floci Console Contract v1](https://floci.io/floci/ui/console-contract/). It listens on `PORT`, reads `AWS_ENDPOINT_URL`, and answers `GET /api/health` with `ok` only when it can reach floci.
+
 | Image tag | What it is |
 |-----------|------------|
 | `latest` | The newest commit on `main`. |
@@ -172,7 +190,9 @@ browser  ->  this server (/aws/*)  ->  floci (:4566)
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `FLOCI_ENDPOINT` | `http://localhost:4566` | Where floci listens. |
+| `AWS_ENDPOINT_URL` | `http://localhost:4566` | Where floci listens. `http://` or `https://`. |
+| `FLOCI_ENDPOINT` | | The same. Read when `AWS_ENDPOINT_URL` is not set. |
+| `FLOCI_TLS_SKIP_VERIFY` | not set | Set to `1` to accept floci's self-signed certificate. |
 | `PORT` | `8080` | Port for the production server. |
 | `HOST` | all addresses | Address the production server listens on. `npx floci-aws-ui serve` uses `127.0.0.1` unless you set it. |
 
