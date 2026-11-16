@@ -29,6 +29,8 @@ afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 const cleanEnv = () => {
   const env = { ...process.env };
   delete env.FLOCI_ENDPOINT;
+  delete env.AWS_ENDPOINT_URL;
+  delete env.FLOCI_INFO_URL;
   delete env.PORT;
   delete env.HOST;
   return env;
@@ -88,10 +90,10 @@ describe("floci-aws-ui command", () => {
     expect(res.stderr).toContain("--port must be a number from 1 to 65535. Got: abc");
   });
 
-  it("rejects a floci address that is not http", () => {
-    const res = run("serve", "--floci", "https://floci.example");
+  it("rejects a floci address that is not http or https", () => {
+    const res = run("serve", "--floci", "ftp://floci.example");
     expect(res.status).toBe(1);
-    expect(res.stderr).toContain("--floci must be an http:// URL");
+    expect(res.stderr).toContain("--floci must be an http:// or https:// URL");
   });
 
   it("says so when the app is not built", () => {

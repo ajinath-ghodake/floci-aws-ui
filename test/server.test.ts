@@ -28,7 +28,7 @@ async function freePort(): Promise<number> {
 
 function start(env: Record<string, string>): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [path.join(dir, "server.mjs")], { env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "inherit"] });
+    const child = spawn(process.execPath, [path.join(dir, "server.mjs")], { env: { ...process.env, AWS_ENDPOINT_URL: "", FLOCI_INFO_URL: "", ...env }, stdio: ["ignore", "pipe", "inherit"] });
     child.stdout!.on("data", (d) => String(d).includes("Console on") && resolve(child));
     child.on("error", reject);
     child.on("exit", (code) => reject(new Error(`server.mjs exited with code ${code}`)));
@@ -49,6 +49,7 @@ beforeAll(async () => {
     req.on("end", () => {
       seen.push({ method: req.method, url: req.url, host: req.headers.host, body });
       res.writeHead(req.url === "/missing" ? 404 : 200, { "content-type": "application/json", "x-fake": "floci" });
+      if (req.url === "/_floci/info") return res.end(JSON.stringify({ endpoint: "http://outside.test:4566", unknown: 1 }));
       res.end(JSON.stringify({ ok: true }));
     });
   });
@@ -127,7 +128,58 @@ describe("static files", () => {
   });
 });
 
+describe("console contract", () => {
+  it("reports ok on /api/health when floci answers", async () => {
+    const res = await fetch(`${base}/api/health`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      status: "ok",
+      endpoint: `http://127.0.0.1:${(fake.address() as AddressInfo).port}`,
+      error: null,
+      console: { name: "floci-aws-ui" },
+    });
+    expect(seen.at(-1)?.url).toBe("/_floci/health");
+  });
+  it("reads AWS_ENDPOINT_URL before FLOCI_ENDPOINT", async () => {
+    const flociPort = (fake.address() as AddressInfo).port;
+    const port = await freePort();
+    const child = await start({ PORT: String(port), AWS_ENDPOINT_URL: `http://127.0.0.1:${flociPort}`, FLOCI_ENDPOINT: "http://wrong.test:1" });
+    try {
+      expect((await (await fetch(`http://127.0.0.1:${port}/api/health`)).json()).endpoint).toBe(`http://127.0.0.1:${flociPort}`);
+    } finally {
+      child.removeAllListeners("exit");
+      child.kill();
+    }
+  });
+  it("takes the floci host name from the manifest when floci gives one", async () => {
+    const flociPort = (fake.address() as AddressInfo).port;
+    const port = await freePort();
+    const child = await start({ PORT: String(port), FLOCI_ENDPOINT: `http://127.0.0.1:${flociPort}`, FLOCI_INFO_URL: `http://127.0.0.1:${flociPort}/_floci/info` });
+    try {
+      expect(await (await fetch(`http://127.0.0.1:${port}/console-config.json`)).json()).toEqual({ flociHost: "outside.test" });
+    } finally {
+      child.removeAllListeners("exit");
+      child.kill();
+    }
+  });
+});
+
 describe("floci is down", () => {
+  it("reports unavailable on /api/health, with the address and the reason", async () => {
+    const dead = await freePort();
+    const port = await freePort();
+    const child = await start({ PORT: String(port), FLOCI_ENDPOINT: `http://127.0.0.1:${dead}` });
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toMatchObject({ status: "unavailable", endpoint: `http://127.0.0.1:${dead}` });
+      expect(body.error).toContain(`Cannot reach floci at http://127.0.0.1:${dead}`);
+    } finally {
+      child.removeAllListeners("exit");
+      child.kill();
+    }
+  });
   it("answers 502 with a clear message", async () => {
     const dead = await freePort();
     const port = await freePort();

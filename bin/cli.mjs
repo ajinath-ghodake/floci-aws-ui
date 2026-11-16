@@ -19,8 +19,8 @@ Options:
   -v, --version       Print the version.
   -h, --help          Print this help.
 
-The environment variables FLOCI_ENDPOINT, PORT and HOST set the same three values.
-An option wins over its variable.
+The environment variables AWS_ENDPOINT_URL (or FLOCI_ENDPOINT), PORT and HOST set
+the same three values. An option wins over its variable.
 
 The console has no login. With the default host, only this machine can open it.
 Use --host 0.0.0.0 to let other machines in, and only on a network you trust.`;
@@ -59,7 +59,7 @@ if (values.help || !command) {
 }
 if (command !== "serve" || positionals.length > 1) fail(`Unknown command: ${positionals.join(" ")}`);
 
-const floci = values.floci ?? process.env.FLOCI_ENDPOINT ?? "http://localhost:4566";
+const floci = values.floci ?? process.env.AWS_ENDPOINT_URL ?? process.env.FLOCI_ENDPOINT ?? "http://localhost:4566";
 const port = values.port ?? process.env.PORT ?? "8080";
 const host = values.host ?? process.env.HOST ?? "127.0.0.1";
 
@@ -69,11 +69,11 @@ try {
 } catch {
   /* reported below */
 }
-if (!url || url.protocol !== "http:") fail(`--floci must be an http:// URL, like http://localhost:4566. Got: ${floci}`);
+if (!url || !["http:", "https:"].includes(url.protocol)) fail(`--floci must be an http:// or https:// URL, like http://localhost:4566. Got: ${floci}`);
 if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) fail(`--port must be a number from 1 to 65535. Got: ${port}`);
 if (!fs.existsSync(path.join(root, "dist", "index.html"))) fail(`The built app is missing. Run "pnpm build" in ${root} first.`);
 
-process.env.FLOCI_ENDPOINT = floci;
+process.env.AWS_ENDPOINT_URL = floci;
 process.env.PORT = port;
 process.env.HOST = host;
 
