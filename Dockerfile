@@ -18,7 +18,7 @@ EXPOSE 8080
 # https://floci.io/floci/ui/console-contract/
 # No port label: floci sets PORT and this server listens there.
 LABEL io.floci.console.contract="1" \
-      io.floci.console.name="Floci Console" \
+      io.floci.console.name="floci-aws-ui" \
       io.floci.console.clouds="aws" \
       io.floci.console.url="https://github.com/varun1505/floci-aws-ui"
 USER node
